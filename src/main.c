@@ -1,9 +1,15 @@
 #include <string.h>
 #include <nrf.h>
-#include <zephyr/kernel.h>
-#include <zephyr/device.h>
-#include <zephyr/drivers/i2s.h>
-#include <zephyr/drivers/gpio.h>
+#include <kernel.h>
+#include <device.h>
+#include <drivers/i2s.h>
+#include <drivers/gpio.h>
+
+#include <logging/log.h>
+#include <sys/printk.h>
+
+/** Register log module */
+LOG_MODULE_REGISTER(i2s);
 
 /* Prepare for 32 sample values */
 #define NUM_SAMPLES 32
