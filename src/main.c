@@ -4,6 +4,7 @@
 #include <device.h>
 #include <drivers/i2s.h>
 #include <drivers/gpio.h>
+#include "wav_file.h"
 
 #include <logging/log.h>
 #include <sys/printk.h>
@@ -27,6 +28,7 @@ static int16_t data_frame[NUM_SAMPLES] = {
 
 /* The number of memory blocks in a slab has to be at least 2 per queue */
 #define NUM_BLOCKS 5
+#define J_LIMIT (sizeof(rawData) / (NUM_BLOCKS * NUM_SAMPLES * 2))
 
 /* Define a new Memory Slab which consistes of NUM_BLOCKS blocks
    __________________________________________________________________________
@@ -36,8 +38,11 @@ static int16_t data_frame[NUM_SAMPLES] = {
 */
 static K_MEM_SLAB_DEFINE(mem_slab, BLOCK_SIZE, NUM_BLOCKS, NUM_SAMPLES);
 
+static uint16_t j = 0;
+
 void main(void) {
-	/* Get I2S device from the devicetree */
+
+    /* Get I2S device from the devicetree */
 	const struct device *i2s_dev = DEVICE_DT_GET(DT_NODELABEL(i2s_rxtx));
 	if (!device_is_ready(i2s_dev)) {
 		printk("%s is not ready\n", i2s_dev->name);
@@ -68,7 +73,8 @@ void main(void) {
 		printk("Failed to allocate the memory blocks: %d\n", ret);
 		return;
 	}
-	memset((uint16_t*)mem_blocks, 0, NUM_SAMPLES * NUM_BLOCKS);
+	//memset((uint16_t*)mem_blocks, 0, NUM_SAMPLES * NUM_BLOCKS);
+    memset((uint16_t*)mem_blocks, 0, (NUM_SAMPLES * NUM_BLOCKS));
 
 	/* Start the transmission of data */
 	ret = i2s_trigger(i2s_dev, I2S_DIR_TX, I2S_TRIGGER_START);
@@ -80,8 +86,19 @@ void main(void) {
 	for(;;) {
 		/* Put data into the tx buffer */
 		for (int i = 0; i < NUM_SAMPLES * NUM_BLOCKS; i++) {
-			((uint16_t*)mem_blocks)[i] = data_frame[i % NUM_SAMPLES];
+			//((uint16_t*)mem_blocks)[i] = data_frame[i % NUM_SAMPLES];
+            ((uint16_t*)mem_blocks)[i] = ((rawData[2 * (NUM_BLOCKS * NUM_SAMPLES) * j + 2*i+1]) << 8) | rawData[2 * (NUM_BLOCKS * NUM_SAMPLES) * j + 2*i];
+            //LOG_INF("rawData[%d]: 0x%X", 2 * (NUM_BLOCKS * NUM_SAMPLES) * j + 2*i, rawData[2 * (NUM_BLOCKS * NUM_SAMPLES) * j + 2*i]);
+            //LOG_INF("mem_blocks[%d]: 0x%X", i, ((uint16_t*)mem_blocks)[i]);
+            if (j >= J_LIMIT){
+                ((uint16_t*)mem_blocks)[i] = 0;
+            }
 		}
+
+        j++;
+        if (j >= 2*J_LIMIT){
+            j = 0;
+        }
 
 		/* Write Data */
 		int ret = i2s_buf_write(i2s_dev, mem_blocks, BLOCK_SIZE);
